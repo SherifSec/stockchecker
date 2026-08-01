@@ -396,6 +396,15 @@ class fetcher(Fetcher):
 
                 self.content = await self.page.content()
                 await self.page.request_gc()
+
+                # Inject price JSON-LD so the restock processor can extract it.
+                # Only when in stock: avoids misreporting used/secondary-market prices.
+                if self.instock_data == 'Possibly in stock':
+                    from changedetectionio.content_fetchers.price_utils import _detect_price, build_instock_jsonld
+                    _price, _currency = _detect_price(self.content)
+                    if _price is not None:
+                        self.content += build_instock_jsonld(_price, _currency, self.instock_data)
+                        logger.debug(f"Playwright: injected price={_price} currency={_currency} for {url}")
                 logger.debug(f"Scrape xPath element data in browser done in {time.time() - now:.2f}s")
 
 

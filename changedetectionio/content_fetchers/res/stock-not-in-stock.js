@@ -74,6 +74,7 @@ async () => {
             'prodotto esaurito',
             'produkt niedostępny',
             'rupture',
+            'see all buying options',
             'sold out',
             'sold-out',
             'stok habis',
@@ -124,7 +125,7 @@ async () => {
             return text.toLowerCase().trim();
         }
 
-        const negateOutOfStockRegex = new RegExp('^([0-9] in stock|add to cart|in stock|arrives approximately)', 'ig');
+        const negateOutOfStockRegex = new RegExp('^([0-9] in stock|add to cart|add to basket|in stock|arrives approximately)', 'ig');
         // The out-of-stock or in-stock-text is generally always above-the-fold
         // and often below-the-fold is a list of related products that may or may not contain trigger text
         // so it's good to filter to just the 'above the fold' elements
