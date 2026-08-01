@@ -192,6 +192,10 @@ else:
     from .webdriver_selenium import fetcher as html_webdriver
 
 
+flaresolverr_url = os.getenv('FLARESOLVERR_URL', False)
+if flaresolverr_url:
+    from .flaresolverr import fetcher as html_flaresolverr
+
 # Register built-in fetchers as plugins after all imports are complete
 from changedetectionio.pluggy_interface import register_builtin_fetchers
 register_builtin_fetchers()
