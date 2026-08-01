@@ -1,5 +1,8 @@
 import asyncio
+import base64
 import os
+from html.parser import HTMLParser
+from urllib.parse import urljoin, urlparse
 
 from flask_babel import lazy_gettext as _l
 from loguru import logger
@@ -11,6 +14,71 @@ from changedetectionio.content_fetchers.price_utils import (
     _detect_price,
     build_instock_jsonld,
 )
+
+_FAVICON_MAX_BYTES = 1 * 1024 * 1024
+
+
+class _FaviconLinkExtractor(HTMLParser):
+    """Collect <link rel="icon"> and <link rel="apple-touch-icon"> hrefs."""
+
+    def __init__(self):
+        super().__init__()
+        self.icons = []  # list of (size, href)
+
+    def handle_starttag(self, tag, attrs):
+        if tag != 'link':
+            return
+        d = dict(attrs)
+        rel = d.get('rel', '').lower()
+        if 'icon' not in rel and 'apple-touch-icon' not in rel:
+            return
+        href = d.get('href', '').strip()
+        if not href:
+            return
+        sizes = d.get('sizes', '')
+        try:
+            size = int(sizes.split('x')[0]) if sizes else (180 if 'apple' in rel else 16)
+        except (ValueError, IndexError):
+            size = 16
+        self.icons.append((size, href))
+
+
+def _fetch_favicon(page_url, html_content, req_lib):
+    """Parse HTML for favicon links and fetch the best one directly."""
+    extractor = _FaviconLinkExtractor()
+    try:
+        extractor.feed(html_content)
+    except Exception:
+        pass
+
+    icons = extractor.icons or [(16, '/favicon.ico')]
+    icons.sort(key=lambda x: x[0], reverse=True)
+
+    origin = f"{urlparse(page_url).scheme}://{urlparse(page_url).netloc}"
+
+    for _, href in icons:
+        if href.startswith('data:'):
+            m = href.split(';base64,', 1)
+            if len(m) == 2:
+                mime = m[0][5:]
+                b64 = m[1]
+                if len(b64) * 0.75 <= _FAVICON_MAX_BYTES:
+                    return {'url': href, 'base64': b64, 'mime_type': mime}
+            continue
+
+        favicon_url = urljoin(origin if href.startswith('/') else page_url, href)
+        try:
+            resp = req_lib.get(favicon_url, timeout=8, allow_redirects=True,
+                               headers={'User-Agent': 'Mozilla/5.0'})
+            if not resp.ok or len(resp.content) > _FAVICON_MAX_BYTES:
+                continue
+            mime = resp.headers.get('content-type', 'image/x-icon').split(';')[0].strip()
+            b64 = base64.b64encode(resp.content).decode('ascii')
+            return {'url': favicon_url, 'base64': b64, 'mime_type': mime}
+        except Exception:
+            continue
+
+    return None
 
 
 class fetcher(Fetcher):
@@ -83,6 +151,10 @@ class fetcher(Fetcher):
             logger.debug(f"FlareSolverr: injected price={price} currency={currency} for {url}")
 
         self.content = content
+
+        self.favicon_blob = _fetch_favicon(url, content, req_lib)
+        if self.favicon_blob:
+            logger.debug(f"FlareSolverr: fetched favicon from {self.favicon_blob.get('url')}")
 
     async def run(self,
                   fetch_favicon=True,
