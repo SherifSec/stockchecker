@@ -125,9 +125,20 @@ def _detect_price(html_content):
     winners = [amt for amt, cnt in counts.items() if cnt == max_count]
 
     if len(winners) != 1:
-        return None, None
+        # Tiebreaker: some sites (e.g. Amazon) render prices in split spans —
+        # "£" / "8." / "15" — so our regex sees both "£8.0" (from "8.") and
+        # "£8.15" (from full-string occurrences), each the same count.
+        # When exactly one non-integer winner's integer part equals another
+        # winner, prefer the non-integer (it's the actual price).
+        non_int = [a for a in winners if a != int(a)]
+        int_set = {float(int(a)) for a in winners}
+        resolved = [a for a in non_int if float(int(a)) in int_set]
+        if len(resolved) != 1:
+            return None, None
+        amount = resolved[0]
+    else:
+        amount = winners[0]
 
-    amount = winners[0]
     return amount, _CURRENCY_SYMBOLS.get(symbols[amount])
 
 
