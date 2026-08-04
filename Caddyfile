@@ -1,3 +1,3 @@
-:80 {
+bookchecker {
     reverse_proxy changedetection:5000
 }
