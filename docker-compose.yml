@@ -1,4 +1,14 @@
 services:
+  caddy:
+    image: caddy:alpine
+    ports:
+      - "127.0.0.1:80:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - changedetection
+    restart: unless-stopped
+
   changedetection:
     image: ghcr.io/dgtlmoon/changedetection.io
     container_name: changedetection
@@ -8,8 +18,6 @@ services:
     environment:
       - PLAYWRIGHT_DRIVER_URL=ws://browser-sockpuppet-chrome:3000
       - FLARESOLVERR_URL=http://flaresolverr:8191
-    ports:
-      - 127.0.0.1:5001:5000
     restart: unless-stopped
     depends_on:
       browser-sockpuppet-chrome:
